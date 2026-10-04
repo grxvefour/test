@@ -105,6 +105,7 @@ border-top:1px solid rgba(255,255,255,.20);border-bottom:1px solid rgba(255,255,
 .mic.listening .wave-1{animation:liquidWave1 3.2s linear infinite,waveRise1 2.2s ease-in-out infinite alternate}
 .mic.listening .wave-2{animation:liquidWave2 4.3s linear infinite,waveRise2 2.8s ease-in-out infinite alternate}
 .mic.listening .wave-3{animation:liquidWave3 5.2s linear infinite,waveRise3 3.3s ease-in-out infinite alternate}
+.mic.listening .mic-icon-normal{display:none}.mic.listening .mic-icon-stop{display:block!important}
 .mic.listening{
 animation:micGlow 2.4s ease-in-out infinite alternate,micBreath 1.8s cubic-bezier(.45,0,.55,1) infinite;
 transform-origin:center center;
@@ -205,7 +206,7 @@ body.target-open{overflow:hidden;touch-action:none}
   <div class="window-divider" id="windowDivider" role="separator" aria-orientation="horizontal" aria-label="Изменить размер окон"></div>
   <div class="card target" id="targetCard"><div class="label" id="targetLabel"></div><div class="result empty" id="result">Здесь появится перевод...</div><div class="actions"><button type="button" class="speak" id="speak" disabled><svg class="icon" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/></svg>Прослушать</button><button type="button" class="force" id="force" aria-label="Перевести принудительно" title="Перевести принудительно"><svg class="icon" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 4v7h-7"/></svg></button><button type="button" class="latin" id="latin" disabled aria-label="Сербская латиница" title="Сербская латиница"><span style="font-weight:800;font-size:15px">Aa</span></button><button type="button" class="copy" id="copy" disabled aria-label="Копировать"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M15 6V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h1"/></svg></button></div></div>
 </section>
-<div class="bottom"><button type="button" class="switch" id="swap" aria-label="Поменять языки"><span class="knob"></span><span class="lang a">RU</span><span class="lang b">RS</span></button><button type="button" class="mic" id="mic" aria-label="Голосовой ввод"><span class="mic-surface"></span><span class="mic-wave wave-1"></span><span class="mic-wave wave-2"></span><span class="mic-wave wave-3"></span><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8"/></svg></button><button type="button" class="clear" id="clear" aria-label="Очистить">×</button></div>
+<div class="bottom"><button type="button" class="switch" id="swap" aria-label="Поменять языки"><span class="knob"></span><span class="lang a">RU</span><span class="lang b">RS</span></button><button type="button" class="mic" id="mic" aria-label="Голосовой ввод"><span class="mic-surface"></span><span class="mic-wave wave-1"></span><span class="mic-wave wave-2"></span><span class="mic-wave wave-3"></span><svg class="icon mic-icon-normal" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8"/></svg><svg class="icon mic-icon-stop" viewBox="0 0 24 24" style="display:none"><rect x="7" y="5" width="3.5" height="14" rx="1.4" fill="currentColor" stroke="none"/><rect x="13.5" y="5" width="3.5" height="14" rx="1.4" fill="currentColor" stroke="none"/></svg></button><button type="button" class="clear" id="clear" aria-label="Очистить">×</button></div>
 <div class="dev">DEVELOPER - SERGEY KROKHMAL</div><div class="toast" id="toast"></div>
 </main><div class="menu" id="menu"></div>
 <script>
@@ -266,8 +267,9 @@ let currentAudio=null,lastAudioAt=0;
 const PIPER_URL='https://cdn.jsdelivr.net/npm/@jtsage/piper-tts-web@1.2.0/+esm';
 const PIPER_VOICES={sr:'sr_RS-serbski_institut-medium',ru:'ru_RU-dmitri-medium'};
 let piper=null;
-const piperReaders={sr:null,ru:null};
-const piperSessions={sr:null,ru:null};
+let activePiperSession=null;
+let activePiperReader=null;
+let activePiperLang=null;
 let speakingSeq=0;
 
 async function loadPiper(){
@@ -281,18 +283,31 @@ function setVoiceProgress(lang,percent,status){
  if(bar&&Number.isFinite(percent))bar.style.width=Math.max(0,Math.min(100,percent))+'%';
  if(st&&status)st.textContent=status;
 }
+function unloadPiperVoice(){
+ // Keep downloaded ONNX files in OPFS, but release the active model/session from RAM.
+ activePiperSession=null;
+ activePiperReader=null;
+ activePiperLang=null;
+ try{
+   if(piper?.TtsSession && ('_instance' in piper.TtsSession)){
+     piper.TtsSession._instance=null;
+   }
+ }catch{}
+}
+
 async function getPiperSession(lang,onProgress){
  await loadPiper();
- if(piperSessions[lang])return piperSessions[lang];
 
- // The library keeps an internal singleton. Reset it before creating a DIFFERENT voice.
- // Otherwise the second requested voice can silently keep using the first loaded ONNX model.
+ // Only one voice/model may stay alive in RAM.
+ if(activePiperSession && activePiperLang===lang)return activePiperSession;
+
+ unloadPiperVoice();
+
+ const reader=new piper.CachedFileReader({});
  if(piper.TtsSession && ('_instance' in piper.TtsSession)){
    piper.TtsSession._instance=null;
  }
 
- const reader=new piper.CachedFileReader({});
- piperReaders[lang]=reader;
  const session=new piper.TtsSession({
    voiceId:PIPER_VOICES[lang],
    fileReader:reader,
@@ -304,7 +319,10 @@ async function getPiperSession(lang,onProgress){
      }
    }
  });
- piperSessions[lang]=session;
+
+ activePiperReader=reader;
+ activePiperSession=session;
+ activePiperLang=lang;
  return session;
 }
 async function warmVoice(lang){
@@ -314,6 +332,8 @@ async function warmVoice(lang){
  const wav=await session.predict(lang==='sr'?'Zdravo.':'Привет.');
  if(!(wav instanceof Blob)||wav.size<44)throw Error('Piper не создал звук для '+lang.toUpperCase());
  setVoiceProgress(lang,100,'готово ✓');
+ // Model file remains cached on device; live session is released from RAM.
+ unloadPiperVoice();
 }
 async function voicesAlreadyStored(){
  try{
@@ -359,39 +379,49 @@ initVoiceSetup();
 async function speakText(text,lang){
  if(!text)return;
  const my=++speakingSeq;
- if(currentAudio){try{currentAudio.pause();currentAudio.removeAttribute('src');currentAudio.load()}catch{}currentAudio=null}
+
+ if(currentAudio){
+   try{currentAudio.pause();currentAudio.removeAttribute('src');currentAudio.load()}catch{}
+   currentAudio=null;
+ }
+
  try{
-   const started=performance.now();toast(lang==='ru'?'Dmitri…':'DSB…');
+   const started=performance.now();
+   toast(lang==='ru'?'Dmitri…':'DSB…');
 
-   // Piper TtsSession is effectively one active model at a time.
-   // Recreate only when language changes; the ONNX file itself stays cached locally.
-   if(speakText.activeLang!==lang){
-     if(piper){
-       try{if(piper.TtsSession&&('_instance' in piper.TtsSession))piper.TtsSession._instance=null}catch{}
-     }
-     piperSessions.sr=null;
-     piperSessions.ru=null;
-     speakText.activeLang=lang;
-   }
-
+   // Load exactly one requested voice into RAM.
    const session=await getPiperSession(lang);
    const wav=await session.predict(text);
+
+   // Speech has already been rendered into WAV, so release ONNX/session BEFORE playback.
+   unloadPiperVoice();
+
    if(my!==speakingSeq)return;
    if(!(wav instanceof Blob)||wav.size<44)throw Error('Piper вернул пустой звук');
 
    const audio=new Audio(),url=URL.createObjectURL(wav);
-   currentAudio=audio;audio.preload='auto';audio.playsInline=true;audio.src=url;
-   const done=()=>{lastAudioAt=Date.now();URL.revokeObjectURL(url);if(currentAudio===audio)currentAudio=null};
+   currentAudio=audio;
+   audio.preload='auto';
+   audio.playsInline=true;
+   audio.src=url;
+
+   const done=()=>{
+     lastAudioAt=Date.now();
+     try{audio.pause();audio.removeAttribute('src');audio.load()}catch{}
+     URL.revokeObjectURL(url);
+     if(currentAudio===audio)currentAudio=null;
+   };
+
    audio.addEventListener('ended',done,{once:true});
    audio.addEventListener('error',done,{once:true});
    await audio.play();
    toast((lang==='ru'?'Dmitri':'DSB')+': '+((performance.now()-started)/1000).toFixed(1)+' сек.');
  }catch(e){
+   unloadPiperVoice();
    console.error('Piper speech error',lang,e);
    toast('Ошибка '+(lang==='ru'?'Dmitri':'DSB')+': '+(e?.message||e));
  }
 }
-speakText.activeLang=null;
 speak.addEventListener('click',()=>{const [,to]=langs();speakText(translated,to)});
 function bindWords(){result.querySelectorAll('.word').forEach(w=>{let sx=0,sy=0,longPressed=false;w.addEventListener('click',e=>{if(longPressed){e.preventDefault();longPressed=false;return}playWord(w)});w.addEventListener('contextmenu',e=>{e.preventDefault();showAlternatives(w,e.clientX,e.clientY)});w.addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY;clearTimeout(pressTimer);pressTimer=setTimeout(()=>{longPressed=true;showAlternatives(w,sx,sy)},450)});w.addEventListener('pointerup',()=>clearTimeout(pressTimer));w.addEventListener('pointercancel',()=>clearTimeout(pressTimer));w.addEventListener('pointermove',e=>{if(Math.hypot(e.clientX-sx,e.clientY-sy)>9)clearTimeout(pressTimer)})})}
 async function playWord(w){closeMenu();result.querySelectorAll('.word').forEach(x=>x.classList.remove('active'));w.classList.add('active');const [,to]=langs();speakText(w.textContent.replace(/[.,!?;:]+$/,''),to);await underlineSourceFor(w);setTimeout(()=>w.classList.remove('active'),650)}
@@ -604,10 +634,10 @@ const ENGLISH_HINT=/\b(the|a|an|and|or|is|are|was|were|this|that|take|off|pass|y
 const SERBIAN_HINT=/\b(ja|ti|on|ona|mi|vi|oni|sam|si|je|smo|ste|su|nije|ne|da|šta|sto|kako|gde|gdje|ovo|to|taj|ta|pas|psa|dobar|dobra|dobro|imam|ima|hoću|hocu|mogu|može|moze|treba|zdravo|hvala|molim|samo|sad|sada)\b/gi;
 function serbianScore(text,confidence=0){let score=(Number(confidence)||0)*2;score+=(text.match(new RegExp(SR_LATIN.source,'gi'))||[]).length*2.5;score+=(text.match(new RegExp(SR_CYRILLIC.source,'gi'))||[]).length*2.5;score+=(text.match(SERBIAN_HINT)||[]).length*1.7;score-=(text.match(ENGLISH_HINT)||[]).length*2.2;return score}
 function bestRecognitionAlternative(rs,isSerbian){const c=[];for(let j=0;j<rs.length;j++)c.push({text:(rs[j].transcript||'').trim(),confidence:rs[j].confidence||0});if(!c.length)return '';if(!isSerbian)return c[0].text;c.sort((a,b)=>serbianScore(b.text,b.confidence)-serbianScore(a.text,a.confidence));return c[0].text}
-function micVisual(on){mic.classList.toggle('listening',!!on);mic.setAttribute('aria-pressed',on?'true':'false')}
+function micVisual(on){mic.classList.toggle('listening',!!on);mic.setAttribute('aria-pressed',on?'true':'false');mic.setAttribute('aria-label',on?'Остановить запись':'Голосовой ввод')}
 function killRecognition(){const r=recognition;recognition=null;recognitionState='idle';micVisual(false);stopVoiceReactive();if(r){try{r.onstart=r.onend=r.onresult=r.onerror=null;r.abort()}catch{}}}
 function makeRecognition(token){
- if(!SR)return null;const r=new SR();r.interimResults=true;r.continuous=false;r.maxAlternatives=5;
+ if(!SR)return null;const r=new SR();r.interimResults=true;r.continuous=true;r.maxAlternatives=5;
  r.onstart=()=>{if(token!==recognitionToken)return;recognitionState='listening';micVisual(true)};
  r.onresult=e=>{if(token!==recognitionToken)return;const isSerbian=langs()[0]==='sr';let t='';for(let i=0;i<e.results.length;i++){const p=bestRecognitionAlternative(e.results[i],isSerbian);if(p)t+=(t?' ':'')+p}if(t){input.value=t;sourceCard.classList.add('hastext');clearTimeout(timer);timer=setTimeout(perform,100)}};
  r.onerror=e=>{if(token!==recognitionToken)return;const code=e.error||'unknown';killRecognition();if(langs()[0]==='sr'&&(code==='language-not-supported'||code==='service-not-allowed')&&srFallbackIndex<SR_IOS_LANGS.length-1){srFallbackIndex++;setTimeout(()=>startRecognition(true),250);return}if(code==='no-speech'||code==='aborted')return;if(code==='not-allowed'||code==='service-not-allowed'){toast('Нет разрешения на микрофон');return}if(code==='audio-capture'){toast('Микрофон недоступен');return}toast('Ошибка микрофона: '+code)};
@@ -616,6 +646,7 @@ function makeRecognition(token){
 }
 async function primeMicrophone(){if(!navigator.mediaDevices?.getUserMedia)return true;try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop());return true}catch(e){toast('Нет доступа к микрофону');return false}}
 async function startRecognition(isFallback=false){
+ unloadPiperVoice();
  if(!SR)return toast('Голосовой ввод не поддерживается');
  if(recognitionState!=='idle'){++recognitionToken;killRecognition();await new Promise(r=>setTimeout(r,180))}
  const sourceLang=langs()[0];if(!isFallback)srFallbackIndex=0;
@@ -626,9 +657,19 @@ async function startRecognition(isFallback=false){
  recognitionLang=sourceLang==='sr'?SR_IOS_LANGS[srFallbackIndex]:'ru-RU';recognition.lang=recognitionLang;recognitionState='starting';micVisual(true);
  try{recognition.start()}catch(e){if(token===recognitionToken)killRecognition();if(e?.name==='InvalidStateError')setTimeout(()=>startRecognition(isFallback),250);else toast('Не удалось запустить микрофон')}
 }
-mic.addEventListener('click',async()=>{if(recognitionState==='starting'||recognitionState==='listening'){++recognitionToken;killRecognition();return}await startRecognition(false)});
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&recognitionState!=='idle'){++recognitionToken;killRecognition()}});
-window.addEventListener('pagehide',()=>{if(recognitionState!=='idle'){++recognitionToken;killRecognition()}});
+mic.addEventListener('click',async()=>{
+ if(recognitionState==='starting'||recognitionState==='listening'){
+   recognitionState='stopping';
+   micVisual(false);
+   const r=recognition;
+   if(r){try{r.stop()}catch{killRecognition()}}
+   return;
+ }
+ if(recognitionState==='stopping')return;
+ await startRecognition(false);
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){unloadPiperVoice();if(recognitionState!=='idle'){++recognitionToken;killRecognition()}}});
+window.addEventListener('pagehide',()=>{unloadPiperVoice();if(recognitionState!=='idle'){++recognitionToken;killRecognition()}});
 
 const targetCard=$('#targetCard');
 const cards=$('.cards'),windowDivider=$('#windowDivider');
