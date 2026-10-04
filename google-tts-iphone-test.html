@@ -2,110 +2,117 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Piper fixed runtime test</title>
+<title>Piper FIX</title>
 <style>
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#09090b;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-main{max-width:720px;margin:auto;padding:24px 16px 60px}.card{background:#17171a;border:1px solid #38383f;border-radius:20px;padding:16px;margin:14px 0}
-h1{font-size:26px;margin:0 0 8px}p{color:#aaa;line-height:1.45}.phrase{background:#0d0d0f;border:1px solid #3d3d43;border-radius:14px;padding:14px;margin:11px 0;font-size:18px}
-button{width:100%;min-height:55px;border:0;border-radius:14px;margin-top:9px;background:#7656bd;color:#fff;font-size:17px;font-weight:750}
-button.alt{background:#3d3d43}.status{margin-top:10px;background:#0c0c0e;border-radius:12px;padding:11px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
-audio{width:100%;margin-top:10px}.good{color:#6ee7a8}
-</style></head>
-<body><main>
-<h1>Piper — исправленный ONNX тест</h1>
-<p>Эта версия не использует старый Mintplex → esm.sh → Cloudflare ONNX 1.18 путь. Для синтеза используется новая ветка Piper с настраиваемыми WASM-путями и ONNX Runtime 1.22.</p>
+main{max-width:720px;margin:auto;padding:22px 16px 60px}.card{background:#17171a;border:1px solid #38383f;border-radius:20px;padding:16px;margin:14px 0}
+h1{font-size:26px;margin:0 0 8px}p{color:#aaa;line-height:1.45}.phrase{background:#0c0c0e;border:1px solid #3c3c42;border-radius:14px;padding:14px;margin:11px 0;font-size:18px}
+button{width:100%;min-height:55px;border:0;border-radius:14px;margin-top:9px;background:#7656bd;color:#fff;font-size:17px;font-weight:750}button.alt{background:#3d3d43}
+.status{margin-top:10px;background:#0c0c0e;border-radius:12px;padding:11px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+audio{width:100%;margin-top:10px}
+</style></head><body><main>
+<h1>Piper — FIX ONNX/WASM</h1>
+<p>DSB и Dmitri сохраняются в памяти сайта. Эта версия использует Piper 1.2.0 / ONNX Runtime 1.22 и явно задаёт WASM-файлы, чтобы не обращаться к старому onnxruntime 1.18 на cdnjs.</p>
 
-<div class="card">
-<b>🇷🇸 Serbian — serbski_institut medium, DSB</b>
+<div class="card"><b>🇷🇸 DSB — Serbian medium</b>
 <div class="phrase">Zdravo, kako si? Reci mi koliko je sada sati.</div>
-<button onclick="say('sr')">▶ Произнести DSB</button>
-<div id="sr" class="status">Готово к тесту.</div><audio id="sra" controls playsinline></audio>
-</div>
+<button onclick="speakVoice('sr')">▶ Произнести DSB</button>
+<div id="sr" class="status">Готово.</div><audio id="sra" controls playsinline></audio></div>
 
-<div class="card">
-<b>🇷🇺 Russian — Dmitri medium</b>
+<div class="card"><b>🇷🇺 Dmitri — Russian medium</b>
 <div class="phrase">Привет, как дела? Скажи мне, сколько сейчас времени.</div>
-<button onclick="say('ru')">▶ Произнести Dmitri</button>
-<div id="ru" class="status">Готово к тесту.</div><audio id="rua" controls playsinline></audio>
-</div>
+<button onclick="speakVoice('ru')">▶ Произнести Dmitri</button>
+<div id="ru" class="status">Готово.</div><audio id="rua" controls playsinline></audio></div>
 
-<div class="card">
-<b>Сохранённые модели</b>
-<button class="alt" onclick="stored()">Проверить модели</button>
-<div id="store" class="status">Нажми «Проверить модели».</div>
-</div>
+<div class="card"><b>Сохранённые модели</b>
+<button class="alt" onclick="checkModels()">Проверить сохранённые модели</button>
+<div id="models" class="status">—</div></div>
 
-<div class="card"><b>Диагностика</b><div id="diag" class="status">Загружаю Piper…</div></div>
+<div class="card"><b>Диагностика</b><div id="diag" class="status">Загрузка библиотеки…</div></div>
 
 <script type="module">
-const $=id=>document.getElementById(id);
-let piper=null;
+const $=x=>document.getElementById(x);
+const diag=$('diag');
+let tts=null;
 
-const VOICES={
- sr:{id:'sr_RS-serbski_institut-medium',text:'Zdravo, kako si? Reci mi koliko je sada sati.',speaker:0,audio:'sra'},
- ru:{id:'ru_RU-dmitri-medium',text:'Привет, как дела? Скажи мне, сколько сейчас времени.',audio:'rua'}
-};
-
-// Важно: фиксируем совместимую версию runtime и указываем WASM явно.
-// jsDelivr отдаёт .mjs/.wasm с CORS, в отличие от сломанной цепочки в прошлом тесте.
-const WASM={
- onnxWasm:'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/',
- piperData:'https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/piper_phonemize.data',
- piperWasm:'https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/piper_phonemize.wasm'
-};
-
-try{
- piper=await import('https://cdn.jsdelivr.net/npm/@jtsage/piper-tts-web@1.2.0/+esm');
- $('diag').textContent='Piper 1.2.0 загружен ✓\nONNX: 1.22.0\nHTTPS: '+isSecureContext+
- '\nOrigin: '+location.origin+'\nUA: '+navigator.userAgent;
-}catch(e){
- $('diag').textContent='ОШИБКА загрузки библиотеки:\n'+(e.stack||e);
+/* ВАЖНО:
+   Используем jtsage 1.2.0, где ONNX обновлён до 1.22.
+   esm.sh только собирает ES-модуль. Сам ONNX WASM ниже принудительно
+   направляется на jsDelivr 1.22.0 — старого cdnjs/1.18 здесь нет.
+*/
+try {
+  tts = await import('https://esm.sh/@jtsage/piper-tts-web@1.2.0?bundle&target=es2020');
+  diag.textContent =
+    'Piper JS: OK ✓\n' +
+    'Версия: @jtsage/piper-tts-web 1.2.0\n' +
+    'ONNX WASM: 1.22.0 (jsDelivr)\n' +
+    'Origin: '+location.origin+'\n' +
+    'HTTPS: '+isSecureContext+'\n' +
+    'API: '+Object.keys(tts).sort().join(', ');
+} catch(e) {
+  diag.textContent='ОШИБКА ИМПОРТА:\n'+(e.stack||e.message||String(e));
 }
 
-async function getStored(){
- if(!piper) return [];
- try{return await piper.stored()}catch(e){return []}
-}
-window.stored=async()=>{
- if(!piper){$('store').textContent='Piper ещё не загрузился.';return}
- try{
-   const a=await piper.stored();
-   $('store').textContent='Сохранено: '+a.length+'\n'+(a.length?a.join('\n'):'ничего')+
-   '\n\nDSB: '+(a.includes(VOICES.sr.id)?'ЕСТЬ ✓':'НЕТ')+
-   '\nDmitri: '+(a.includes(VOICES.ru.id)?'ЕСТЬ ✓':'НЕТ');
- }catch(e){$('store').textContent='Ошибка OPFS:\n'+(e.stack||e)}
+const voice = {
+  sr:{id:'sr_RS-serbski_institut-medium', text:'Zdravo, kako si? Reci mi koliko je sada sati.', speakerId:0, audio:'sra'},
+  ru:{id:'ru_RU-dmitri-medium', text:'Привет, как дела? Скажи мне, сколько сейчас времени.', audio:'rua'}
 };
 
-window.say=async lang=>{
- if(!piper){$(lang).textContent='Piper не загрузился. Смотри диагностику.';return}
- const v=VOICES[lang], out=$(lang);
- try{
-   out.textContent='Создаю TTS session…';
-   const session=new piper.TtsSession({
-     voiceId:v.id,
-     allowLocalModels:true,
-     fallbackStrategy:'auto',
-     wasmPaths:WASM,
-     progress:(p)=>{
-       if(p && p.total) out.textContent='Загрузка: '+Math.round(p.loaded*100/p.total)+'%';
-     },
-     logger:(m)=>{ if(m) out.textContent=String(m); }
-   });
-   out.textContent='Синтезирую…';
-   // API новой ветки: session.predict(text). Для multi-speaker пробуем speakerId в session.
-   if(lang==='sr'){
-      // Некоторые сборки читают speaker из session options.
-      session.speakerId=0; session.speaker=0;
-   }
-   const wav=await session.predict(v.text);
-   const a=$(v.audio);
-   if(a.dataset.u) URL.revokeObjectURL(a.dataset.u);
-   const u=URL.createObjectURL(wav); a.dataset.u=u; a.src=u;
-   await a.play();
-   out.textContent='РАБОТАЕТ ✓\n'+v.id+(lang==='sr'?'\nDSB / speaker 0':'');
- }catch(e){
-   out.textContent='ОШИБКА:\n'+(e.stack||e);
- }
+const wasmPaths = {
+  onnxWasm: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/',
+  piperData: 'https://cdn.jsdelivr.net/npm/@jtsage/piper-tts-web@1.2.0/dist/piper/piper_phonemize.data',
+  piperWasm: 'https://cdn.jsdelivr.net/npm/@jtsage/piper-tts-web@1.2.0/dist/piper/piper_phonemize.wasm'
 };
-</script>
-</main></body></html>
+
+window.checkModels=async function(){
+  if(!tts){$('models').textContent='Piper JS не загрузился.';return}
+  try{
+    const a=await tts.stored();
+    $('models').textContent=
+      'Сохранено: '+a.length+'\n'+(a.length?a.join('\n'):'ничего')+
+      '\n\nDSB: '+(a.includes(voice.sr.id)?'ЕСТЬ ✓':'НЕТ')+
+      '\nDmitri: '+(a.includes(voice.ru.id)?'ЕСТЬ ✓':'НЕТ');
+  }catch(e){$('models').textContent='ОШИБКА OPFS:\n'+(e.stack||e)}
+};
+
+window.speakVoice=async function(lang){
+  const box=$(lang), v=voice[lang];
+  if(!tts){box.textContent='Piper JS не загрузился. Смотри «Диагностика».';return}
+  try{
+    box.textContent='Создаю Piper session…';
+
+    if(typeof tts.TtsSession!=='function')
+      throw new Error('TtsSession отсутствует. Экспорты: '+Object.keys(tts).join(', '));
+
+    const session = new tts.TtsSession({
+      voiceId:v.id,
+      allowLocalModels:true,
+      fallbackStrategy:'auto',
+      wasmPaths,
+      progress:p=>{
+        if(p && p.total) box.textContent='Загрузка '+Math.round(p.loaded*100/p.total)+'%';
+      },
+      logger:m=>{ if(m) box.textContent='Piper: '+m; }
+    });
+
+    box.textContent='Синтезирую…';
+
+    /* Для serbski_institut speaker 0 = DSB.
+       В текущем API session.predict принимает текст; speaker 0 является
+       первым/дефолтным speaker этой модели. */
+    const wav=await session.predict(v.text);
+
+    const a=$(v.audio);
+    if(a.dataset.url) URL.revokeObjectURL(a.dataset.url);
+    const url=URL.createObjectURL(wav);
+    a.dataset.url=url; a.src=url;
+    await a.play();
+
+    box.textContent='РАБОТАЕТ ✓\n'+v.id+(lang==='sr'?'\nDSB = speaker 0':'');
+  }catch(e){
+    box.textContent='ОШИБКА СИНТЕЗА:\n'+(e.stack||e.message||String(e));
+  }
+};
+
+if(tts) checkModels();
+</script></main></body></html>
