@@ -1,118 +1,93 @@
 <!doctype html>
-<html lang="ru">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Piper FIX</title>
-<style>
-:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#09090b;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-main{max-width:720px;margin:auto;padding:22px 16px 60px}.card{background:#17171a;border:1px solid #38383f;border-radius:20px;padding:16px;margin:14px 0}
-h1{font-size:26px;margin:0 0 8px}p{color:#aaa;line-height:1.45}.phrase{background:#0c0c0e;border:1px solid #3c3c42;border-radius:14px;padding:14px;margin:11px 0;font-size:18px}
-button{width:100%;min-height:55px;border:0;border-radius:14px;margin-top:9px;background:#7656bd;color:#fff;font-size:17px;font-weight:750}button.alt{background:#3d3d43}
-.status{margin-top:10px;background:#0c0c0e;border-radius:12px;padding:11px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
-audio{width:100%;margin-top:10px}
-</style></head><body><main>
-<h1>Piper — FIX ONNX/WASM</h1>
-<p>DSB и Dmitri сохраняются в памяти сайта. Эта версия использует Piper 1.2.0 / ONNX Runtime 1.22 и явно задаёт WASM-файлы, чтобы не обращаться к старому onnxruntime 1.18 на cdnjs.</p>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Piper iPhone FIX 2</title>
+<style>:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#09090b;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:720px;margin:auto;padding:22px 16px 60px}.card{background:#17171a;border:1px solid #38383f;border-radius:20px;padding:16px;margin:14px 0}h1{font-size:25px}.phrase,.log{background:#0c0c0e;border:1px solid #3c3c42;border-radius:14px;padding:14px;margin:11px 0}.phrase{font-size:18px}.log{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}button{width:100%;min-height:55px;border:0;border-radius:14px;margin:9px 0 0;background:#7656bd;color:#fff;font-size:17px;font-weight:750}button.alt{background:#44444b}audio{width:100%;margin-top:10px}p{color:#aaa}</style></head>
+<body><main><h1>Piper — iPhone FIX 2</h1>
+<p>Исправлены реальные ошибки предыдущего теста: правильные Piper phonemizer WASM/DATA и правильная проверка OPFS.</p>
 
-<div class="card"><b>🇷🇸 DSB — Serbian medium</b>
-<div class="phrase">Zdravo, kako si? Reci mi koliko je sada sati.</div>
-<button onclick="speakVoice('sr')">▶ Произнести DSB</button>
-<div id="sr" class="status">Готово.</div><audio id="sra" controls playsinline></audio></div>
+<div class="card"><b>🇷🇸 DSB — Serbian medium</b><div class="phrase">Zdravo, kako si? Reci mi koliko je sada sati.</div>
+<button onclick="speak('sr')">▶ Произнести DSB</button><div id="sr" class="log">Готово.</div><audio id="sra" controls playsinline></audio></div>
 
-<div class="card"><b>🇷🇺 Dmitri — Russian medium</b>
-<div class="phrase">Привет, как дела? Скажи мне, сколько сейчас времени.</div>
-<button onclick="speakVoice('ru')">▶ Произнести Dmitri</button>
-<div id="ru" class="status">Готово.</div><audio id="rua" controls playsinline></audio></div>
+<div class="card"><b>🇷🇺 Dmitri — Russian medium</b><div class="phrase">Привет, как дела? Скажи мне, сколько сейчас времени.</div>
+<button onclick="speak('ru')">▶ Произнести Dmitri</button><div id="ru" class="log">Готово.</div><audio id="rua" controls playsinline></audio></div>
 
-<div class="card"><b>Сохранённые модели</b>
-<button class="alt" onclick="checkModels()">Проверить сохранённые модели</button>
-<div id="models" class="status">—</div></div>
-
-<div class="card"><b>Диагностика</b><div id="diag" class="status">Загрузка библиотеки…</div></div>
+<div class="card"><b>Модели на iPhone</b><button class="alt" onclick="checkModels()">Проверить сохранённые модели</button><div id="models" class="log">—</div></div>
+<div class="card"><b>Диагностика</b><div id="diag" class="log">Загрузка…</div></div>
 
 <script type="module">
 const $=x=>document.getElementById(x);
-const diag=$('diag');
-let tts=null;
+let tts;
+const voices={
+ sr:{id:'sr_RS-serbski_institut-medium',text:'Zdravo, kako si? Reci mi koliko je sada sati.',audio:'sra'},
+ ru:{id:'ru_RU-dmitri-medium',text:'Привет, как дела? Скажи мне, сколько сейчас времени.',audio:'rua'}
+};
 
-/* ВАЖНО:
-   Используем jtsage 1.2.0, где ONNX обновлён до 1.22.
-   esm.sh только собирает ES-модуль. Сам ONNX WASM ниже принудительно
-   направляется на jsDelivr 1.22.0 — старого cdnjs/1.18 здесь нет.
+/* Эти URL взяты из исходников @jtsage/piper-tts-web 1.2.0:
+   ONNX_BASE = onnxruntime-web 1.22.0
+   WASM_BASE = @diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize
 */
-try {
-  tts = await import('https://esm.sh/@jtsage/piper-tts-web@1.2.0?bundle&target=es2020');
-  diag.textContent =
-    'Piper JS: OK ✓\n' +
-    'Версия: @jtsage/piper-tts-web 1.2.0\n' +
-    'ONNX WASM: 1.22.0 (jsDelivr)\n' +
-    'Origin: '+location.origin+'\n' +
-    'HTTPS: '+isSecureContext+'\n' +
-    'API: '+Object.keys(tts).sort().join(', ');
-} catch(e) {
-  diag.textContent='ОШИБКА ИМПОРТА:\n'+(e.stack||e.message||String(e));
-}
-
-const voice = {
-  sr:{id:'sr_RS-serbski_institut-medium', text:'Zdravo, kako si? Reci mi koliko je sada sati.', speakerId:0, audio:'sra'},
-  ru:{id:'ru_RU-dmitri-medium', text:'Привет, как дела? Скажи мне, сколько сейчас времени.', audio:'rua'}
+const wasmPaths={
+ onnxWasm:'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/',
+ piperData:'https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.data',
+ piperWasm:'https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.wasm'
 };
 
-const wasmPaths = {
-  onnxWasm: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/',
-  piperData: 'https://cdn.jsdelivr.net/npm/@jtsage/piper-tts-web@1.2.0/dist/piper/piper_phonemize.data',
-  piperWasm: 'https://cdn.jsdelivr.net/npm/@jtsage/piper-tts-web@1.2.0/dist/piper/piper_phonemize.wasm'
-};
+try{
+ tts=await import('https://esm.sh/@jtsage/piper-tts-web@1.2.0?bundle&target=es2020');
+ $('diag').textContent='Piper JS: OK ✓\nOrigin: '+location.origin+
+ '\nONNX: 1.22.0\nPhonemizer: diffusionstudio/piper-wasm 1.0.0\n'+
+ 'API: '+Object.keys(tts).sort().join(', ');
+ await checkModels();
+}catch(e){$('diag').textContent='ОШИБКА ИМПОРТА:\n'+(e.stack||e)}
 
 window.checkModels=async function(){
-  if(!tts){$('models').textContent='Piper JS не загрузился.';return}
-  try{
-    const a=await tts.stored();
-    $('models').textContent=
-      'Сохранено: '+a.length+'\n'+(a.length?a.join('\n'):'ничего')+
-      '\n\nDSB: '+(a.includes(voice.sr.id)?'ЕСТЬ ✓':'НЕТ')+
-      '\nDmitri: '+(a.includes(voice.ru.id)?'ЕСТЬ ✓':'НЕТ');
-  }catch(e){$('models').textContent='ОШИБКА OPFS:\n'+(e.stack||e)}
+ if(!tts){$('models').textContent='Piper не загружен';return}
+ try{
+   // В 1.2.0 stored() не экспортируется. Правильный API — CachedFileReader.list().
+   const reader=new tts.CachedFileReader();
+   const list=await reader.list();
+   $('models').textContent='Сохранено: '+list.length+'\n'+(list.join('\n')||'ничего')+
+     '\n\nDSB: '+(list.includes(voices.sr.id)?'ЕСТЬ ✓':'НЕТ')+
+     '\nDmitri: '+(list.includes(voices.ru.id)?'ЕСТЬ ✓':'НЕТ');
+ }catch(e){$('models').textContent='ОШИБКА OPFS:\n'+(e.stack||e)}
 };
 
-window.speakVoice=async function(lang){
-  const box=$(lang), v=voice[lang];
-  if(!tts){box.textContent='Piper JS не загрузился. Смотри «Диагностика».';return}
-  try{
-    box.textContent='Создаю Piper session…';
+window.speak=async function(lang){
+ const v=voices[lang], box=$(lang);
+ if(!tts){box.textContent='Piper не загружен';return}
+ try{
+   /* У библиотеки TtsSession — singleton. При смене языка старую session
+      обязательно сбрасываем, иначе она оставляет ONNX предыдущего голоса. */
+   tts.TtsSession._instance=null;
 
-    if(typeof tts.TtsSession!=='function')
-      throw new Error('TtsSession отсутствует. Экспорты: '+Object.keys(tts).join(', '));
+   const reader=new tts.CachedFileReader({
+     progress:p=>{
+       if(p?.total) box.textContent='Загрузка модели: '+Math.round(p.loaded*100/p.total)+'%';
+     }
+   });
 
-    const session = new tts.TtsSession({
-      voiceId:v.id,
-      allowLocalModels:true,
-      fallbackStrategy:'auto',
-      wasmPaths,
-      progress:p=>{
-        if(p && p.total) box.textContent='Загрузка '+Math.round(p.loaded*100/p.total)+'%';
-      },
-      logger:m=>{ if(m) box.textContent='Piper: '+m; }
-    });
+   box.textContent='Инициализация '+v.id+'…';
+   const session=await tts.TtsSession.create({
+     voiceId:v.id,
+     fileReader:reader,
+     wasmPaths,
+     fallbackStrategy:'local',
+     allowLocalModels:true,
+     logger:m=>{if(m) box.textContent='Piper: '+m}
+   });
 
-    box.textContent='Синтезирую…';
+   box.textContent='Фонемизация и синтез…';
+   // В исходнике 1.2.0 speakerId сейчас жёстко = 0.
+   // Для serbski_institut это как раз DSB.
+   const wav=await session.predict(v.text);
 
-    /* Для serbski_institut speaker 0 = DSB.
-       В текущем API session.predict принимает текст; speaker 0 является
-       первым/дефолтным speaker этой модели. */
-    const wav=await session.predict(v.text);
-
-    const a=$(v.audio);
-    if(a.dataset.url) URL.revokeObjectURL(a.dataset.url);
-    const url=URL.createObjectURL(wav);
-    a.dataset.url=url; a.src=url;
-    await a.play();
-
-    box.textContent='РАБОТАЕТ ✓\n'+v.id+(lang==='sr'?'\nDSB = speaker 0':'');
-  }catch(e){
-    box.textContent='ОШИБКА СИНТЕЗА:\n'+(e.stack||e.message||String(e));
-  }
+   if(!(wav instanceof Blob) || wav.size<44) throw new Error('Получен пустой WAV');
+   const a=$(v.audio);
+   if(a.dataset.url)URL.revokeObjectURL(a.dataset.url);
+   const u=URL.createObjectURL(wav); a.dataset.url=u; a.src=u;
+   box.textContent='WAV готов: '+Math.round(wav.size/1024)+' KB. Запускаю…';
+   await a.play();
+   box.textContent='РАБОТАЕТ ✓\n'+v.id+'\nWAV: '+Math.round(wav.size/1024)+' KB';
+ }catch(e){box.textContent='ОШИБКА:\n'+(e.stack||e.message||String(e))}
 };
-
-if(tts) checkModels();
 </script></main></body></html>
