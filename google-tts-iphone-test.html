@@ -209,6 +209,18 @@ body.target-open{overflow:hidden;touch-action:none}
 <div class="dev">DEVELOPER - SERGEY KROKHMAL</div><div class="toast" id="toast"></div>
 </main><div class="menu" id="menu"></div>
 <script>
+
+/* Reload/crash diagnostics: never calls reload(). */
+try{
+ const BOOT_KEY='translator-last-boot-v2';
+ const previous=sessionStorage.getItem(BOOT_KEY);
+ const now=Date.now();
+ sessionStorage.setItem(BOOT_KEY,String(now));
+ if(previous && now-Number(previous)<120000){
+   setTimeout(()=>toast('Страница была перезапущена браузером'),900);
+ }
+}catch{}
+
 const $=s=>document.querySelector(s), input=$('#input'), sourceUnderline=$('#sourceUnderline'), result=$('#result'), swap=$('#swap'), mic=$('#mic'), clear=$('#clear'), speak=$('#speak'), copy=$('#copy'), force=$('#force'), latin=$('#latin'), sourceSpeak=$('#sourceSpeak'), sourceForce=$('#sourceForce'), sourceLatin=$('#sourceLatin'), sourceCopy=$('#sourceCopy'), menu=$('#menu'), sourceCard=$('#sourceCard');
 let direction='ru-sr', timer=0, controller=null, seq=0, translated='', pressTimer=0, recognition=null, latinMode=false;
 const FLAGS={ru:'<svg class="mini-flag" viewBox="0 0 18 12"><path fill="#fff" d="M0 0h18v4H0z"/><path fill="#1764b0" d="M0 4h18v4H0z"/><path fill="#e33b45" d="M0 8h18v4H0z"/></svg>',sr:'<svg class="mini-flag" viewBox="0 0 18 12"><path fill="#df3340" d="M0 0h18v4H0z"/><path fill="#174d9a" d="M0 4h18v4H0z"/><path fill="#fff" d="M0 8h18v4H0z"/></svg>'};
@@ -272,11 +284,25 @@ function setVoiceProgress(lang,percent,status){
 async function getPiperSession(lang,onProgress){
  await loadPiper();
  if(piperSessions[lang])return piperSessions[lang];
+
+ // The library keeps an internal singleton. Reset it before creating a DIFFERENT voice.
+ // Otherwise the second requested voice can silently keep using the first loaded ONNX model.
+ if(piper.TtsSession && ('_instance' in piper.TtsSession)){
+   piper.TtsSession._instance=null;
+ }
+
  const reader=new piper.CachedFileReader({});
  piperReaders[lang]=reader;
  const session=new piper.TtsSession({
-   voiceId:PIPER_VOICES[lang],fileReader:reader,allowLocalModels:true,fallbackStrategy:'auto',
-   progress:p=>{if(p&&Number.isFinite(p.loaded)&&Number.isFinite(p.total)&&p.total>0)onProgress?.(Math.round(p.loaded*100/p.total))}
+   voiceId:PIPER_VOICES[lang],
+   fileReader:reader,
+   allowLocalModels:true,
+   fallbackStrategy:'auto',
+   progress:p=>{
+     if(p&&Number.isFinite(p.loaded)&&Number.isFinite(p.total)&&p.total>0){
+       onProgress?.(Math.round(p.loaded*100/p.total));
+     }
+   }
  });
  piperSessions[lang]=session;
  return session;
@@ -335,19 +361,37 @@ async function speakText(text,lang){
  const my=++speakingSeq;
  if(currentAudio){try{currentAudio.pause();currentAudio.removeAttribute('src');currentAudio.load()}catch{}currentAudio=null}
  try{
-   const started=performance.now();toast('Готовлю речь…');
+   const started=performance.now();toast(lang==='ru'?'Dmitri…':'DSB…');
+
+   // Piper TtsSession is effectively one active model at a time.
+   // Recreate only when language changes; the ONNX file itself stays cached locally.
+   if(speakText.activeLang!==lang){
+     if(piper){
+       try{if(piper.TtsSession&&('_instance' in piper.TtsSession))piper.TtsSession._instance=null}catch{}
+     }
+     piperSessions.sr=null;
+     piperSessions.ru=null;
+     speakText.activeLang=lang;
+   }
+
    const session=await getPiperSession(lang);
    const wav=await session.predict(text);
    if(my!==speakingSeq)return;
    if(!(wav instanceof Blob)||wav.size<44)throw Error('Piper вернул пустой звук');
+
    const audio=new Audio(),url=URL.createObjectURL(wav);
    currentAudio=audio;audio.preload='auto';audio.playsInline=true;audio.src=url;
    const done=()=>{lastAudioAt=Date.now();URL.revokeObjectURL(url);if(currentAudio===audio)currentAudio=null};
-   audio.addEventListener('ended',done,{once:true});audio.addEventListener('error',done,{once:true});
+   audio.addEventListener('ended',done,{once:true});
+   audio.addEventListener('error',done,{once:true});
    await audio.play();
-   toast('Речь: '+((performance.now()-started)/1000).toFixed(1)+' сек.');
- }catch(e){console.error('Piper speech error',e);toast('Ошибка Piper: '+(e?.message||e))}
+   toast((lang==='ru'?'Dmitri':'DSB')+': '+((performance.now()-started)/1000).toFixed(1)+' сек.');
+ }catch(e){
+   console.error('Piper speech error',lang,e);
+   toast('Ошибка '+(lang==='ru'?'Dmitri':'DSB')+': '+(e?.message||e));
+ }
 }
+speakText.activeLang=null;
 speak.addEventListener('click',()=>{const [,to]=langs();speakText(translated,to)});
 function bindWords(){result.querySelectorAll('.word').forEach(w=>{let sx=0,sy=0,longPressed=false;w.addEventListener('click',e=>{if(longPressed){e.preventDefault();longPressed=false;return}playWord(w)});w.addEventListener('contextmenu',e=>{e.preventDefault();showAlternatives(w,e.clientX,e.clientY)});w.addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY;clearTimeout(pressTimer);pressTimer=setTimeout(()=>{longPressed=true;showAlternatives(w,sx,sy)},450)});w.addEventListener('pointerup',()=>clearTimeout(pressTimer));w.addEventListener('pointercancel',()=>clearTimeout(pressTimer));w.addEventListener('pointermove',e=>{if(Math.hypot(e.clientX-sx,e.clientY-sy)>9)clearTimeout(pressTimer)})})}
 async function playWord(w){closeMenu();result.querySelectorAll('.word').forEach(x=>x.classList.remove('active'));w.classList.add('active');const [,to]=langs();speakText(w.textContent.replace(/[.,!?;:]+$/,''),to);await underlineSourceFor(w);setTimeout(()=>w.classList.remove('active'),650)}
