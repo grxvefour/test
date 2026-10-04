@@ -3,131 +3,117 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>iPhone Google TTS Lab</title>
+<title>Google TTS iPhone — Test 2</title>
 <style>
 :root{color-scheme:dark}
 *{box-sizing:border-box}
-body{margin:0;background:#0b0b0d;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-main{max-width:720px;margin:auto;padding:calc(18px + env(safe-area-inset-top)) 16px 50px}
-h1{font-size:25px;margin:4px 0 8px} p{color:#aaa;line-height:1.45}
-.card{background:#17171a;border:1px solid #303036;border-radius:20px;padding:15px;margin:12px 0}
-textarea{width:100%;min-height:80px;background:#0e0e10;color:#fff;border:1px solid #36363c;border-radius:14px;padding:12px;font-size:17px}
-button{width:100%;min-height:52px;margin-top:9px;border:0;border-radius:15px;background:#34343a;color:#fff;font-size:16px;font-weight:700}
-button.primary{background:#7656b5}.status{margin-top:9px;padding:10px;border-radius:12px;background:#101012;font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
-.ok{border:1px solid #3c8}.bad{border:1px solid #d66}.small{font-size:12px;color:#888}
-audio{width:100%;margin-top:8px}
+body{margin:0;background:#09090b;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:720px;margin:auto;padding:calc(22px + env(safe-area-inset-top)) 16px 50px}
+h1{font-size:28px;margin:0 0 10px}p{color:#aaa;line-height:1.45}
+.card{background:#17171a;border:1px solid #333338;border-radius:20px;padding:16px;margin:14px 0}
+textarea{width:100%;min-height:82px;background:#0d0d0f;color:white;border:1px solid #3a3a40;border-radius:14px;padding:13px;font-size:18px}
+button,a.btn{display:block;width:100%;min-height:54px;margin-top:10px;border:0;border-radius:15px;background:#3a3a40;color:white;font-size:17px;font-weight:700;text-align:center;padding:16px;text-decoration:none}
+.primary{background:#7757bd!important}
+.status{margin-top:10px;background:#0d0d0f;border-radius:12px;padding:11px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.note{font-size:13px;color:#888}
+iframe{width:100%;height:110px;border:1px solid #444;border-radius:12px;margin-top:10px;background:#222}
 </style>
 </head>
 <body><main>
-<h1>Google TTS — iPhone test lab</h1>
-<p>Страница ничего не «взламывает»: она проверяет разные разрешённые браузером способы загрузки и воспроизведения одного и того же Google TTS.</p>
+<h1>Google TTS — тест №2</h1>
+<p>Мы уже знаем: прямое открытие Google TTS на iPhone воспроизводит звук. Здесь проверяем, можно ли использовать этот рабочий путь удобнее.</p>
 
 <div class="card">
-<b>Текст теста</b>
+<b>Текст</b>
 <textarea id="text">Zdravo, kako si?</textarea>
-<button class="primary" id="unlock">1. Разрешить звук + микрофон</button>
-<div class="status" id="unlockStatus">Сначала нажмите эту кнопку. iPhone может показать системный запрос микрофона.</div>
 </div>
 
-<div class="card"><b>2. googleapis + gtx → audio.src</b>
-<button onclick="directTest('a','https://translate.googleapis.com/translate_tts','gtx')">Проверить</button><div class="status" id="a">Не проверено</div></div>
+<div class="card">
+<b>1. Скрытый iframe</b>
+<p class="note">Пытаемся открыть рабочий Google TTS внутри страницы, не уходя с переводчика.</p>
+<button onclick="iframeTest(false)">Проверить iframe</button>
+<div id="frameBox"></div>
+<div class="status" id="s1">Не проверено</div>
+</div>
 
-<div class="card"><b>3. google.com + tw-ob → audio.src</b>
-<button onclick="directTest('b','https://translate.google.com/translate_tts','tw-ob')">Проверить</button><div class="status" id="b">Не проверено</div></div>
+<div class="card">
+<b>2. Видимый iframe</b>
+<p class="note">То же самое, но фрейм остаётся видимым — увидим, разрешает ли Google вообще встраивание.</p>
+<button onclick="iframeTest(true)">Проверить видимый iframe</button>
+<div id="visibleBox"></div>
+<div class="status" id="s2">Не проверено</div>
+</div>
 
-<div class="card"><b>4. googleapis + gtx → fetch → Blob</b>
-<button onclick="blobTest('c','https://translate.googleapis.com/translate_tts','gtx')">Проверить</button><div class="status" id="c">Не проверено</div></div>
+<div class="card">
+<b>3. Новая вкладка → Google TTS</b>
+<p class="note">Это вариант, который у вас уже воспроизводился. Проверяем его чисто и без лишних параметров.</p>
+<button class="primary" onclick="newTab()">Открыть и проиграть</button>
+<div class="status" id="s3">После нажатия должна открыться страница Google со звуком.</div>
+</div>
 
-<div class="card"><b>5. google.com + tw-ob → fetch → Blob</b>
-<button onclick="blobTest('d','https://translate.google.com/translate_tts','tw-ob')">Проверить</button><div class="status" id="d">Не проверено</div></div>
+<div class="card">
+<b>4. Маленькое отдельное окно</b>
+<p class="note">На iPhone браузер может всё равно превратить его во вкладку, но проверим.</p>
+<button onclick="popupTest()">Открыть окно с TTS</button>
+<div class="status" id="s4">Не проверено</div>
+</div>
 
-<div class="card"><b>6. Открыть Google TTS как отдельную страницу</b>
-<p class="small">Покажет, отдаёт ли Google вообще что-нибудь этому iPhone. Если вместо аудио будет ошибка/страница Google — это тоже важный результат.</p>
-<button onclick="openDirect()">Открыть Google TTS</button><div class="status" id="e">После нажатия откроется новая вкладка.</div></div>
+<div class="card">
+<b>5. Эта же вкладка → Google TTS</b>
+<p class="note">Самый прямой способ. Перед переходом сохраняем адрес теста, чтобы потом можно было нажать «Назад».</p>
+<button onclick="sameTab()">Проиграть в этой вкладке</button>
+<div class="status" id="s5">После нажатия сайт перейдёт на Google TTS. Вернуться можно кнопкой браузера «Назад».</div>
+</div>
 
-<div class="card"><b>7. Проверка локального аудио</b>
-<p class="small">Генерируется прямо на телефоне через Web Audio, без Google. Если слышен писк — разрешение на звук в браузере есть.</p>
-<button onclick="beep()">Воспроизвести тестовый писк</button><div class="status" id="f">Не проверено</div></div>
+<div class="card">
+<b>6. Ссылка вместо JavaScript</b>
+<p class="note">Проверяем, влияет ли именно обычная пользовательская ссылка.</p>
+<a class="btn" id="plainLink" href="#" target="_blank">Открыть обычной ссылкой</a>
+<div class="status" id="s6">Не проверено</div>
+</div>
 
-<div class="card"><b>Диагностика</b><div class="status" id="diag"></div></div>
-<audio id="player" playsinline webkit-playsinline></audio>
+<div class="card">
+<b>7. Предварительно открыть вкладку → затем направить на TTS</b>
+<p class="note">Проверяет вариант, который потом можно использовать из кнопки «Прослушать»: вкладка создаётся непосредственно по нажатию и сразу получает адрес Google.</p>
+<button onclick="preopen()">Проверить pre-open</button>
+<div class="status" id="s7">Не проверено</div>
+</div>
 
 <script>
-const $=id=>document.getElementById(id), player=$('player');
-function phrase(){return $('text').value.trim()||'Zdravo, kako si?'}
-function url(base,client){return base+'?ie=UTF-8&client='+encodeURIComponent(client)+'&tl=sr&q='+encodeURIComponent(phrase())+'&_='+Date.now()}
-function set(id,msg,ok){const e=$(id);e.textContent=msg;e.className='status '+(ok===true?'ok':ok===false?'bad':'')}
-function mediaInfo(prefix=''){const e=player.error;return prefix+
- '\nerror='+(e?('code '+e.code+' '+(e.message||'')):'none')+
- '\nnetworkState='+player.networkState+' readyState='+player.readyState+
- '\ncurrentSrc='+(player.currentSrc||player.src||'none')}
-$('diag').textContent='UA: '+navigator.userAgent+'\nsecureContext: '+isSecureContext+'\nonline: '+navigator.onLine+
- '\nAudio MP3: '+player.canPlayType('audio/mpeg')+
- '\nAudio AAC: '+player.canPlayType('audio/mp4; codecs="mp4a.40.2"');
-
-$('unlock').onclick=async()=>{
- let lines=[];
- try{
-   const C=window.AudioContext||window.webkitAudioContext;
-   if(C){const c=new C();await c.resume();lines.push('AudioContext: '+c.state);await c.close()}
- }catch(e){lines.push('AudioContext ERROR: '+e.name+' '+e.message)}
- try{
-   if(navigator.mediaDevices?.getUserMedia){
-     const st=await navigator.mediaDevices.getUserMedia({audio:true});
-     st.getTracks().forEach(t=>t.stop());
-     lines.push('Микрофон: разрешён (и сразу выключен)');
-   }else lines.push('Микрофон API: отсутствует');
- }catch(e){lines.push('Микрофон: '+e.name+' '+e.message)}
- set('unlockStatus',lines.join('\n'),true);
-};
-
-async function directTest(id,base,client){
- const u=url(base,client); set(id,'Загрузка...\n'+u);
- try{
-   player.pause(); player.removeAttribute('src'); player.load();
-   player.src=u;
-   const onerr=()=>{cleanup();set(id,mediaInfo('audio.onerror'),false)};
-   const onplay=()=>{cleanup();set(id,mediaInfo('РАБОТАЕТ: событие playing'),true)};
-   const cleanup=()=>{player.removeEventListener('error',onerr);player.removeEventListener('playing',onplay)};
-   player.addEventListener('error',onerr);player.addEventListener('playing',onplay);
-   const p=player.play();
-   if(p) await p;
- }catch(e){set(id,mediaInfo('play() REJECTED\n'+e.name+': '+e.message),false)}
+const $=id=>document.getElementById(id);
+function tts(){
+ return 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=sr&q='+encodeURIComponent($('text').value.trim()||'Zdravo, kako si?');
 }
+function iframeTest(visible){
+ const id=visible?'visibleBox':'frameBox', sid=visible?'s2':'s1';
+ $(id).innerHTML='';
+ const f=document.createElement('iframe');
+ f.src=tts();
+ if(!visible){f.style.position='absolute';f.style.width='1px';f.style.height='1px';f.style.opacity='0';f.style.pointerEvents='none'}
+ f.onload=()=>$(sid).textContent='iframe загрузился. Если голос прозвучал — ЭТО РАБОЧИЙ ВАРИАНТ.';
+ f.onerror=()=>$(sid).textContent='iframe error — браузер/Google не разрешил загрузку.';
+ $(id).appendChild(f);
+ $(sid).textContent='iframe создан. Слушаем, появился ли голос...';
+ setTimeout(()=>{$(sid).textContent += '\nЕсли за 3–5 секунд голоса нет — считаем вариант нерабочим.'},3500);
+}
+function newTab(){
+ const w=window.open(tts(),'_blank');
+ $('s3').textContent=w?'Вкладка открыта. Если голос прозвучал — вариант работает.':'window.open заблокирован браузером.';
+}
+function popupTest(){
+ const w=window.open(tts(),'googleTTS','popup=yes,width=420,height=240');
+ $('s4').textContent=w?'Окно/вкладка создано. Проверяем звук.':'Popup заблокирован.';
+}
+function sameTab(){location.href=tts()}
+function refreshLink(){$('plainLink').href=tts()}
+$('plainLink').addEventListener('click',()=>{$('s6').textContent='Ссылка нажата. Если в новой вкладке есть звук — работает.'});
+$('text').addEventListener('input',refreshLink);refreshLink();
 
-async function blobTest(id,base,client){
- const u=url(base,client); set(id,'fetch()...');
- try{
-   const r=await fetch(u,{cache:'no-store'});
-   const type=r.headers.get('content-type')||'(нет)';
-   const cors=r.headers.get('access-control-allow-origin')||'(не виден)';
-   if(!r.ok)throw Error('HTTP '+r.status+' '+r.statusText);
-   const blob=await r.blob();
-   const head=await blob.slice(0,32).arrayBuffer();
-   const bytes=[...new Uint8Array(head)].map(x=>x.toString(16).padStart(2,'0')).join(' ');
-   const objectURL=URL.createObjectURL(blob);
-   player.src=objectURL;
-   try{
-     await player.play();
-     set(id,'РАБОТАЕТ через Blob\nHTTP '+r.status+'\nContent-Type: '+type+'\nbytes: '+blob.size+'\nfirst bytes: '+bytes,true);
-   }catch(e){
-     set(id,'Blob получен, но play() не работает\n'+e.name+': '+e.message+'\nContent-Type: '+type+'\nbytes: '+blob.size+'\nfirst bytes: '+bytes,false);
-   }
-   setTimeout(()=>URL.revokeObjectURL(objectURL),15000);
- }catch(e){
-   set(id,'fetch ERROR\n'+e.name+': '+e.message+'\nЧастая причина здесь — CORS/Google блокирует fetch из GitHub Pages.',false);
- }
+function preopen(){
+ const w=window.open('about:blank','_blank');
+ if(!w){$('s7').textContent='Браузер заблокировал создание вкладки.';return}
+ $('s7').textContent='Вкладка создана непосредственно по нажатию; отправляем её на Google TTS.';
+ try{w.location.href=tts()}catch(e){$('s7').textContent='Ошибка: '+e.name+': '+e.message}
 }
-
-function openDirect(){
- const u=url('https://translate.google.com/translate_tts','tw-ob');
- $('e').textContent=u; window.open(u,'_blank');
-}
-async function beep(){
- try{
-  const C=window.AudioContext||window.webkitAudioContext,c=new C();await c.resume();
-  const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=440;g.gain.value=.08;o.start();o.stop(c.currentTime+.25);
-  o.onended=()=>c.close();set('f','РАБОТАЕТ — браузер может воспроизводить звук.',true);
- }catch(e){set('f',e.name+': '+e.message,false)}
-}
-</script></main></body></html>
+</script>
+</main></body></html>
