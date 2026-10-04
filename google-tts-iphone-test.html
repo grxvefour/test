@@ -1,152 +1,111 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Google TTS — hidden navigation lab</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Piper — сохранить 2 голоса</title>
 <style>
-:root{color-scheme:dark}*{box-sizing:border-box}
-body{margin:0;background:#09090b;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-main{max-width:720px;margin:auto;padding:24px 16px 60px}
-h1{font-size:27px;margin:0 0 10px}p{color:#aaa;line-height:1.45}
-.card{background:#17171a;border:1px solid #34343a;border-radius:20px;padding:16px;margin:14px 0}
-textarea{width:100%;min-height:80px;background:#0d0d0f;color:#fff;border:1px solid #444;border-radius:14px;padding:13px;font-size:18px}
-button{width:100%;min-height:56px;margin-top:10px;border:0;border-radius:15px;background:#3b3b41;color:white;font-size:17px;font-weight:700}
-.primary{background:#7656bd}.status{margin-top:10px;padding:11px;border-radius:12px;background:#0d0d0f;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
-small{color:#888}.danger{color:#ff9b9b}
-#hiddenZone{position:fixed;left:-10000px;top:-10000px;width:2px;height:2px;overflow:hidden}
-</style>
-</head>
-<body>
-<main>
-<h1>Google TTS — скрытые способы</h1>
-<p>Мы уже знаем, что Google TTS играет, когда сам адрес Google открыт как страница. Этот тест проверяет, можно ли заставить тот же документ играть, не показывая его пользователю.</p>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#09090b;color:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:700px;margin:auto;padding:24px 16px 60px}.card{background:#17171a;border:1px solid #36363c;border-radius:20px;padding:16px;margin:14px 0}
+h1{font-size:27px;margin:0 0 8px}p{color:#aaa;line-height:1.45}.voice{font-weight:750}.phrase{background:#0d0d0f;border:1px solid #3d3d43;border-radius:13px;padding:13px;margin:10px 0;font-size:17px}
+button{width:100%;min-height:54px;border:0;border-radius:14px;margin-top:9px;background:#7656bd;color:white;font-size:16px;font-weight:750}
+button.alt{background:#3b3b41}button.danger{background:#6a3037}.status{background:#0d0d0f;border-radius:12px;padding:11px;margin-top:10px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.progress{height:8px;background:#2d2d32;border-radius:99px;overflow:hidden;margin-top:9px}.bar{height:100%;width:0;background:#8a68d0}
+.ok{color:#6ee7a8}small{color:#8f8f96}audio{width:100%;margin-top:10px}
+</style></head>
+<body><main>
+<h1>Piper: 2 голоса в памяти iPhone</h1>
+<p>Цель теста: один раз скачать DSB и Dmitri, сохранить их в хранилище сайта, закрыть Safari, открыть страницу снова и проверить, что повторная загрузка моделей не нужна.</p>
 
 <div class="card">
-<b>Текст</b>
-<textarea id="txt">Zdravo, kako si?</textarea>
+<div class="voice">1. 🇷🇸 Serbian — serbski_institut medium, DSB (speaker 0)</div>
+<div class="phrase">Zdravo, kako si? Reci mi koliko je sada sati.</div>
+<button onclick="downloadVoice('sr')">Скачать и сохранить DSB</button>
+<button class="alt" onclick="speak('sr')">▶ Произнести сербскую фразу</button>
+<div class="progress"><div id="srbar" class="bar"></div></div>
+<div id="srstatus" class="status">Проверяем хранилище…</div><audio id="sraudio" controls playsinline></audio>
 </div>
 
 <div class="card">
-<b>1. Скрытый iframe</b>
-<p><small>Google-документ загружается в iframe размером 1×1 за экраном.</small></p>
-<button onclick="hiddenIframe()">Проверить</button>
-<div class="status" id="s1">Не проверено</div>
+<div class="voice">2. 🇷🇺 Russian — Dmitri medium</div>
+<div class="phrase">Привет, как дела? Скажи мне, сколько сейчас времени.</div>
+<button onclick="downloadVoice('ru')">Скачать и сохранить Dmitri</button>
+<button class="alt" onclick="speak('ru')">▶ Произнести русскую фразу</button>
+<div class="progress"><div id="rubar" class="bar"></div></div>
+<div id="rustatus" class="status">Проверяем хранилище…</div><audio id="ruaudio" controls playsinline></audio>
 </div>
 
 <div class="card">
-<b>2. iframe без display:none → потом спрятать</b>
-<p><small>Сначала iframe создаётся как настоящий видимый документ, а через 1.2 секунды уезжает за экран.</small></p>
-<button onclick="loadThenHide()">Проверить</button>
-<div class="status" id="s2">Не проверено</div>
+<div class="voice">Проверка сохранения</div>
+<p><small>После загрузки обоих должно показать два ID. Потом полностью закрой Safari, открой страницу снова и нажми эту кнопку. Если оба ID остались — модели сохранены на iPhone.</small></p>
+<button onclick="checkStored()">Проверить сохранённые модели</button>
+<div id="stored" class="status">—</div>
+<button class="danger" onclick="removeAll()">Удалить обе сохранённые модели</button>
 </div>
 
-<div class="card">
-<b>3. Новая вкладка → быстро вернуть фокус</b>
-<p><small>Открываем рабочую Google-страницу, затем пытаемся вернуть фокус нашей странице. На iPhone браузер может это проигнорировать.</small></p>
-<button class="primary" onclick="openAndRefocus()">Проверить</button>
-<div class="status" id="s3">Не проверено</div>
-</div>
+<div class="card"><div class="voice">Диагностика</div><div id="diag" class="status">Загрузка Piper…</div></div>
 
-<div class="card">
-<b>4. Именованное окно-плеер</b>
-<p><small>Один раз создаём вкладку Google с именем TTS_PLAYER. Следующие нажатия переиспользуют её, а не создают новые.</small></p>
-<button onclick="namedPlayer()">Проверить / сказать ещё раз</button>
-<div class="status" id="s4">Не проверено</div>
-</div>
-
-<div class="card">
-<b>5. about:blank → Google → попытка закрыть</b>
-<p><small>Окно создаётся непосредственно вашим нажатием, затем получает Google TTS. Через 4 секунды пытаемся его закрыть. Проверяем, продолжится ли звук.</small></p>
-<button onclick="openPlayClose()">Проверить</button>
-<div class="status" id="s5">Не проверено</div>
-</div>
-
-<div class="card">
-<b>6. iframe через промежуточную локальную страницу</b>
-<p><small>В iframe сначала загружается страница нашего GitHub, затем она перенаправляется на Google TTS.</small></p>
-<button onclick="localRedirectFrame()">Проверить</button>
-<div class="status" id="s6">Не проверено</div>
-</div>
-
-<div class="card">
-<b>7. Контроль: обычная Google-страница</b>
-<p><small>Это наш контрольный вариант. Он должен играть так же, как в прошлом тесте.</small></p>
-<button onclick="control()">Открыть Google TTS</button>
-<div class="status" id="s7">Если играет только этот вариант, значит iOS требует, чтобы Google TTS был верхней открытой страницей.</div>
-</div>
-
-<div class="card">
-<b>Что прислать мне</b>
-<p>Напиши просто: <b>1 да/нет, 2 да/нет, 3 да/нет… 7 да/нет</b>. Особенно важно, слышен ли голос после возврата на нашу страницу в тестах 3 и 5.</p>
-<p class="danger"><small>Если 1–6 не дают звук, а 7 даёт — дальше скрытые окна мучить уже не будем.</small></p>
-</div>
-
-<div id="hiddenZone"></div>
-<script>
+<script type="module">
+const C={
+ sr:{id:'sr_RS-serbski_institut-medium',text:'Zdravo, kako si? Reci mi koliko je sada sati.',speakerId:0},
+ ru:{id:'ru_RU-dmitri-medium',text:'Привет, как дела? Скажи мне, сколько сейчас времени.'}
+};
+let tts;
 const $=x=>document.getElementById(x);
-function url(){
- const q=$('txt').value.trim()||'Zdravo, kako si?';
- return 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=sr&q='+encodeURIComponent(q)+'&_='+Date.now();
+try{
+ tts=await import('https://esm.sh/@mintplex-labs/piper-tts-web@1.0.5?bundle');
+ $('diag').textContent='Piper JS загружен.\nHTTPS: '+isSecureContext+'\nUA: '+navigator.userAgent+
+ '\n\nВАЖНО: открывай эту страницу через GitHub Pages (https://...), НЕ как локальный file://.';
+ await checkStored();
+}catch(e){$('diag').textContent='Ошибка загрузки Piper JS:\n'+(e.stack||e)}
+
+function stat(lang,msg){$(lang+'status').textContent=msg}
+function prog(lang,p){
+ let n=0;
+ if(p&&p.total) n=p.loaded/p.total;
+ else if(typeof p==='number') n=p<=1?p:p/100;
+ $(lang+'bar').style.width=(Math.max(0,Math.min(1,n))*100)+'%';
+ if(p&&p.url) stat(lang,'Скачивание '+Math.round(n*100)+'%\n'+p.url);
 }
-function frame(where, visible){
- const f=document.createElement('iframe');
- f.src=url(); f.allow='autoplay';
- if(visible){
-   f.style.cssText='width:100%;height:150px;border:1px solid #555;border-radius:12px;margin-top:10px';
- } else {
-   f.style.cssText='position:absolute;width:1px;height:1px;opacity:.01;border:0';
- }
- where.appendChild(f); return f;
-}
-function hiddenIframe(){
- $('hiddenZone').innerHTML=''; frame($('hiddenZone'),false);
- $('s1').textContent='Google TTS загружен в скрытый iframe. Если сейчас слышен голос — вариант работает.';
-}
-function loadThenHide(){
- const old=$('tempFrame'); if(old) old.remove();
- const f=frame($('s2').parentElement,true); f.id='tempFrame';
- $('s2').textContent='iframe сначала видимый; через 1.2 сек будет спрятан.';
- setTimeout(()=>{
-   f.style.cssText='position:fixed;left:-10000px;top:-10000px;width:2px;height:2px;opacity:.01;border:0';
-   $('s2').textContent='iframe спрятан. Был ли слышен голос до/после скрытия?';
- },1200);
-}
-function openAndRefocus(){
- const w=window.open(url(),'_blank');
- $('s3').textContent=w?'Google открыт. Через 0.7 сек пробуем вернуть фокус сюда.':'Окно заблокировано.';
- setTimeout(()=>{ try{window.focus();}catch(e){} },700);
-}
-let player=null;
-function namedPlayer(){
- player=window.open(url(),'TTS_PLAYER');
- $('s4').textContent=player?'Открыт/переиспользован TTS_PLAYER. Повтори кнопку с другим текстом.':'Окно заблокировано.';
-}
-function openPlayClose(){
- const w=window.open('about:blank','_blank');
- if(!w){$('s5').textContent='Окно заблокировано.';return}
- w.location.replace(url());
- $('s5').textContent='Google открыт. Через 4 сек попробуем закрыть созданную вкладку.';
- setTimeout(()=>{
-   try{w.close(); $('s5').textContent+=' Команда close() отправлена.'}
-   catch(e){$('s5').textContent+=' close error: '+e.message}
- },4000);
-}
-function localRedirectFrame(){
- const code='<!doctype html><meta charset=utf-8><script>location.replace('+JSON.stringify(url())+')<\/script>';
- const blob=new Blob([code],{type:'text/html'});
- const u=URL.createObjectURL(blob);
- const f=document.createElement('iframe');
- f.allow='autoplay'; f.src=u;
- f.style.cssText='position:fixed;left:-10000px;top:-10000px;width:2px;height:2px;border:0';
- document.body.appendChild(f);
- $('s6').textContent='Промежуточный документ создан и перенаправлен на Google. Если слышен голос — работает.';
- setTimeout(()=>URL.revokeObjectURL(u),10000);
-}
-function control(){
- window.open(url(),'_blank');
- $('s7').textContent='Контроль открыт. Если здесь голос есть, отметь 7 = ДА.';
-}
-</script>
-</main>
-</body></html>
+window.downloadVoice=async lang=>{
+ if(!tts)return;
+ const c=C[lang];
+ try{
+  stat(lang,'Начинаю загрузку… Не закрывай страницу.');
+  await tts.download(c.id,p=>prog(lang,p));
+  $(lang+'bar').style.width='100%';
+  stat(lang,'СОХРАНЕНО ✓\n'+c.id+'\nТеперь закрой/открой страницу и проверь список ниже.');
+  await checkStored();
+ }catch(e){stat(lang,'ОШИБКА загрузки:\n'+(e.stack||e))}
+};
+window.speak=async lang=>{
+ if(!tts)return;
+ const c=C[lang];
+ try{
+  stat(lang,'Генерирую WAV из сохранённой модели…');
+  const o={text:c.text,voiceId:c.id};
+  if(lang==='sr'){o.speakerId=0;o.speaker=0;}
+  const wav=await tts.predict(o,p=>prog(lang,p));
+  const a=$(lang+'audio');
+  if(a.dataset.u)URL.revokeObjectURL(a.dataset.u);
+  const u=URL.createObjectURL(wav);a.dataset.u=u;a.src=u;
+  await a.play();
+  stat(lang,'РАБОТАЕТ ✓\n'+c.id+(lang==='sr'?'\nDSB = speaker 0':''));
+  await checkStored();
+ }catch(e){stat(lang,'ОШИБКА синтеза:\n'+(e.stack||e))}
+};
+window.checkStored=async()=>{
+ if(!tts){$('stored').textContent='Piper ещё не загрузился.';return}
+ try{
+  const a=await tts.stored();
+  const need=[C.sr.id,C.ru.id];
+  $('stored').textContent='Сохранено: '+a.length+'\n'+(a.length?a.join('\n'):'ничего')+
+  '\n\nDSB: '+(a.includes(need[0])?'ЕСТЬ ✓':'НЕТ')+
+  '\nDmitri: '+(a.includes(need[1])?'ЕСТЬ ✓':'НЕТ');
+ }catch(e){$('stored').textContent='Ошибка проверки:\n'+(e.stack||e)}
+};
+window.removeAll=async()=>{
+ if(!tts)return;
+ try{await tts.remove(C.sr.id).catch(()=>{});await tts.remove(C.ru.id).catch(()=>{});$('srbar').style.width=$('rubar').style.width='0';await checkStored();}
+ catch(e){$('stored').textContent='Ошибка удаления: '+e}
+};
+</script></main></body></html>
